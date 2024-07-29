@@ -138,6 +138,7 @@
 #include <libslic3r/CutUtils.hpp>
 #include <wx/glcanvas.h>    // Needs to be last because reasons :-/
 #include <libslic3r/miniz_extension.hpp>
+#include <Spoolman.hpp>
 #include "WipeTowerDialog.hpp"
 #include "ObjColorDialog.hpp"
 
@@ -6510,6 +6511,9 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
 
             view3D->deselect_all();
         }
+
+        Spoolman::update_visible_spool_statistics(true);
+
 #if 0   // do not toggle auto calc when change printer
         // update flush matrix
         size_t filament_size = wxGetApp().plater()->get_extruder_colors_from_plater_config().size();
