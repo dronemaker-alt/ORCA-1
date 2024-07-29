@@ -25,11 +25,12 @@ function check_available_memory_and_disk() {
 }
 
 function usage() {
-    echo "Usage: ./BuildLinux.sh [-1][-b][-c][-d][-i][-r][-s][-u]"
+    echo "Usage: ./BuildLinux.sh [-1][-b][-c][-f][-d][-i][-r][-s][-u]"
     echo "   -1: limit builds to 1 core (where possible)"
     echo "   -b: build in debug mode"
     echo "   -c: force a clean build"
-    echo "   -d: build deps (optional)"
+    echo "   -f: force a deps build (even if they are already built)"
+    echo "   -d: build deps (if needed)"
     echo "   -h: this help output"
     echo "   -i: Generate appimage (optional)"
     echo "   -r: skip ram and disk checks (low ram compiling)"
@@ -39,17 +40,23 @@ function usage() {
     echo "   and then './BuildLinux.sh -dsi'"
 }
 
-unset name
-while getopts ":1bcdghirsu" opt; do
+PRESET="linux-release"
+BUILD_DEPS="0"
+FORCE_BUILD_DEPS="0"
+while getopts ":1bcfdghirsu" opt; do
   case ${opt} in
     1 )
         export CMAKE_BUILD_PARALLEL_LEVEL=1
         ;;
     b )
         BUILD_DEBUG="1"
+        PRESET="linux-debug"
         ;;
     c )
         CLEAN_BUILD=1
+        ;;
+    f )
+        FORCE_BUILD_DEPS="1"
         ;;
     d )
         BUILD_DEPS="1"
@@ -61,8 +68,8 @@ while getopts ":1bcdghirsu" opt; do
         BUILD_IMAGE="1"
         ;;
     r )
-	    SKIP_RAM_CHECK="1"
-	;;
+	      SKIP_RAM_CHECK="1"
+	      ;;
     s )
         BUILD_ORCA="1"
         ;;
@@ -112,78 +119,40 @@ then
     check_available_memory_and_disk
 fi
 
-if [[ -n "${BUILD_DEPS}" ]]
+if [[ -n "${CLEAN_BUILD}" ]]
 then
-    echo "Configuring dependencies..."
-    BUILD_ARGS="-DDEP_WX_GTK3=ON"
-    if [[ -n "${CLEAN_BUILD}" ]]
-    then
-        rm -fr deps/build
-    fi
-    if [ ! -d "deps/build" ]
-    then
-        mkdir deps/build
-    fi
-    if [[ -n "${BUILD_DEBUG}" ]]
-    then
-        # have to build deps with debug & release or the cmake won't find everything it needs
-        mkdir deps/build/release
-        cmake -S deps -B deps/build/release -G Ninja -DDESTDIR="../destdir" ${BUILD_ARGS}
-        cmake --build deps/build/release
-        BUILD_ARGS="${BUILD_ARGS} -DCMAKE_BUILD_TYPE=Debug"
-    fi
-
-    echo "cmake -S deps -B deps/build -G Ninja ${BUILD_ARGS}"
-    cmake -S deps -B deps/build -G Ninja ${BUILD_ARGS}
-    cmake --build deps/build
+  CONFIG_ARGS="--fresh"
 fi
 
+cmake --preset ${PRESET} -DBUILD_DEPS=${BUILD_DEPS} -DCLEAN_DEPS=${CLEAN_BUILD} -DFORCE_DEPS=${FORCE_BUILD_DEPS} ${CONFIG_ARGS}
+
+# get the build directory's name from the cmake cache
+BUILD_DIR_NAME=$(cmake --preset ${PRESET} -LA -N | grep BIN_DIR_NAME | cut -d "=" -f2)
 
 if [[ -n "${BUILD_ORCA}" ]]
 then
-    echo "Configuring OrcaSlicer..."
     if [[ -n "${CLEAN_BUILD}" ]]
     then
-        rm -fr build
+      echo "Cleaning OrcaSlicer ..."
+      cmake --build --preset ${PRESET} --target clean
     fi
-    BUILD_ARGS=""
-    if [[ -n "${FOUND_GTK3_DEV}" ]]
-    then
-        BUILD_ARGS="-DSLIC3R_GTK=3"
-    fi
-    if [[ -n "${BUILD_DEBUG}" ]]
-    then
-        BUILD_ARGS="${BUILD_ARGS} -DCMAKE_BUILD_TYPE=Debug -DBBL_INTERNAL_TESTING=1"
-    else
-        BUILD_ARGS="${BUILD_ARGS} -DBBL_RELEASE_TO_PUBLIC=1 -DBBL_INTERNAL_TESTING=0"
-    fi
-    echo -e "cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH="${PWD}/deps/build/destdir/usr/local" -DSLIC3R_STATIC=1 ${BUILD_ARGS}"
-    cmake -S . -B build -G Ninja \
-        -DCMAKE_PREFIX_PATH="${PWD}/deps/build/destdir/usr/local" \
-        -DSLIC3R_STATIC=1 \
-        -DORCA_TOOLS=ON \
-        ${BUILD_ARGS}
-    echo "done"
     echo "Building OrcaSlicer ..."
-    cmake --build build --target OrcaSlicer
+    cmake --build --preset ${PRESET}
     echo "Building OrcaSlicer_profile_validator .."
-    cmake --build build --target OrcaSlicer_profile_validator
+    cmake --build ${BUILD_DIR_NAME} --target OrcaSlicer_profile_validator
     ./run_gettext.sh
-    echo "done"
 fi
 
-if [[ -e ${ROOT}/build/src/BuildLinuxImage.sh ]]; then
+if [[ -e ${ROOT}/${BUILD_DIR_NAME}/src/BuildLinuxImage.sh ]]; then
 # Give proper permissions to script
-chmod 755 ${ROOT}/build/src/BuildLinuxImage.sh
+chmod 755 ${ROOT}/${BUILD_DIR_NAME}/src/BuildLinuxImage.sh
 
-echo "[9/9] Generating Linux app..."
-    pushd build
+    pushd ${BUILD_DIR_NAME} # cmake exported env variable
         if [[ -n "${BUILD_IMAGE}" ]]
         then
-            ${ROOT}/build/src/BuildLinuxImage.sh -i
+            ${ROOT}/${BUILD_DIR_NAME}/src/BuildLinuxImage.sh -i
         else
-            ${ROOT}/build/src/BuildLinuxImage.sh
+            ${ROOT}/${BUILD_DIR_NAME}/src/BuildLinuxImage.sh
         fi
     popd
-echo "done"
 fi

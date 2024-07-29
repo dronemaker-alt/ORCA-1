@@ -1,0 +1,31 @@
+{
+  "version": 4,
+  "configurePresets": [
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "generator": "Ninja",
+      "cacheVariables":{
+        "SLIC3R_STATIC": "ON",
+        "ORCA_TOOLS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux-base-build",
+      "targets": "all",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    }
+  ]
+}

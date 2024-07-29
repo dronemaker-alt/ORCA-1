@@ -21,6 +21,14 @@
 #
 
 cmake_minimum_required(VERSION 3.2)
+
+# Backward compatibility for old CMake versions
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_VERSION VERSION_LESS "3.25")
+    set(LINUX ON CACHE BOOL "" FORCE)
+endif ()
+
+set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "") # Disable deprecation warnings from dependencies built using old CMake versions
+
 if (APPLE)
     # if CMAKE_OSX_DEPLOYMENT_TARGET is not set, set it to 11.3
     if (NOT CMAKE_OSX_DEPLOYMENT_TARGET)
@@ -54,8 +62,8 @@ if (_is_multi)
     option(ORCA_INCLUDE_DEBUG_INFO "Includes debug information in a release build (like RelWithDebInfo) in a way that works with multi-configuration generators and incompatible dependencies. DEP_DEBUG option takes priority over this." OFF)
 endif ()
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    option(DEP_WX_GTK3 "Build wxWidgets against GTK3" OFF)
+if(LINUX)
+    option(DEP_WX_GTK3 "Build wxWidgets against GTK3" ON)
 else() 
     if(POLICY CMP0135) # DOWNLOAD_EXTRACT_TIMESTAMP
         cmake_policy(SET CMP0135 NEW)
